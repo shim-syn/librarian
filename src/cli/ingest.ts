@@ -331,8 +331,8 @@ async function buildGitlabVersionPlan(
     const meta = versionMeta.get(label);
     let ref: string | null = null;
 
-    if (parseGitlabSeriesLabel(label).major !== null && tagNames.length > 0) {
-      ref = pickGitlabLatestForSeries({ tags: tagNames, seriesLabel: label, defaultBranch: "" });
+    if (parseGitlabSeriesLabel(label) !== null && tagNames.length > 0) {
+      ref = pickGitlabLatestForSeries({ tags: tagNames, seriesLabel: label });
     }
     if (!ref) ref = meta?.ref ?? null;
     if (!ref && source.version_label === label && source.ref) ref = source.ref;

@@ -81,20 +81,22 @@ export function printAddHelp(): void {
   console.log(`Usage: ${cmd} add <url>`);
   console.log(`   or: ${cmd} add owner/repo`);
   console.log(`   or: ${cmd} add github <url>`);
+  console.log(`   or: ${cmd} add gitlab <url>`);
   console.log(`   or: ${cmd} add web <url>`);
   console.log(`   or: ${cmd} add owner/repo --list-refs`);
   console.log("");
   console.log("Examples:");
   console.log(`  ${cmd} add vercel/next.js`);
   console.log(`  ${cmd} add https://github.com/owner/repo --docs docs --ref main`);
+  console.log(`  ${cmd} add https://gitlab.com/owner/project --docs docs --ref main`);
   console.log(`  ${cmd} add https://example.com/docs --depth 2`);
   console.log(`  ${cmd} add vercel/next.js --list-refs --refs-filter 16.`);
   console.log("");
-  console.log("Common GitHub flags:");
-  console.log("  --docs <path>              Docs folder in the repo");
+  console.log("Common GitHub/GitLab flags:");
+  console.log("  --docs <path>              Docs folder in the repo/project");
   console.log("  --ref <tag|branch>          Git ref to ingest");
   console.log("  --version <label>           Version label like 16.x");
-  console.log("  --mode docs|repo            Docs only or full repo");
+  console.log("  --mode docs|repo            Docs only or full repo/project");
   console.log("  --list-refs                 Show tags/branches and exit");
 }
 
@@ -103,14 +105,17 @@ export function printSourceHelp(): void {
   console.log("Source commands");
   console.log("");
   console.log(`Usage: ${cmd} source add github <url|owner/repo>`);
+  console.log(`   or: ${cmd} source add gitlab <url|owner/project>`);
   console.log(`   or: ${cmd} source add web <url>`);
   console.log(`   or: ${cmd} source list`);
   console.log(`   or: ${cmd} source remove <id>`);
   console.log(`   or: ${cmd} source update <id>`);
   console.log(`   or: ${cmd} source add github owner/repo --list-refs`);
+  console.log(`   or: ${cmd} source add gitlab owner/project --list-refs`);
   console.log("");
   console.log("Examples:");
   console.log(`  ${cmd} source add github https://github.com/owner/repo --docs docs --ref main`);
+  console.log(`  ${cmd} source add gitlab https://gitlab.com/owner/project --docs docs --ref main`);
   console.log(`  ${cmd} source add web https://example.com/docs --depth 2`);
 }
 
