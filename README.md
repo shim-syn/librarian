@@ -3,7 +3,7 @@
 Librarian fetches and searches up-to-date developer docs on your machine.  
 Use it to give AI agents real context so they stop guessing and writing bad code.
 
-Supports GitHub repos and public websites.
+Supports GitHub repos, GitLab projects, and public websites.
 
 ## Install
 
@@ -85,6 +85,14 @@ librarian add https://github.com/owner/repo --docs docs --ref main
 ```
 ```bash
 librarian add https://github.com/owner/repo --version 16.x
+```
+
+### GitLab projects
+```bash
+librarian add https://gitlab.com/owner/project --docs docs --ref main
+```
+```bash
+librarian add https://gitlab.com/owner/project --version 16.x
 ```
 
 ### Websites
@@ -241,6 +249,9 @@ Config file: `~/.config/librarian/config.yml`
 github:
   token: ghp_xxx  # For private repos
 
+gitlab:
+  token: glpat-xxx  # For private projects
+
 proxy:
   endpoint: http://user:pass@proxy.example.com:8080
   # Any HTTP proxy works; tested with Webshare.
@@ -260,6 +271,7 @@ ingest:
 ## Notes
 - `setup` downloads the local embedding model
 - Public repos don't need a GitHub token
+- Public GitLab projects don't need a GitLab token
 - Website crawling auto-detects CSR/SPA sites and uses headless Chrome
 - Chrome is auto-detected but can be configured manually
 - Run `librarian setup` to check Chrome availability

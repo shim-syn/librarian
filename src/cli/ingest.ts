@@ -4,11 +4,14 @@ import { parseArgs } from "node:util";
 import readline from "node:readline";
 import { addSourceVersion, ensureLibraryDbPath, listSources, getSourceById, updateSourceSync, listSourceVersions } from "../store";
 import { ingestGithubSource } from "../ingest/github/ingest";
+import { ingestGitlabSource } from "../ingest/gitlab/ingest";
 import { ingestWebSource } from "../ingest/web/ingest";
 import { loadConfig } from "../core/config";
 import { resolveIngestConcurrency } from "../ingest/concurrency";
 import { fetchRepoInfo, fetchStableTags } from "../ingest/github/api";
+import { fetchProjectInfo, fetchStableTags as fetchGitlabTags } from "../ingest/gitlab/api";
 import { extractMajorVersion, getLatestTagByMajor, parseSeriesLabel, pickLatestForSeries } from "../ingest/github/versioning";
+import { extractMajorVersion as extractGitlabMajorVersion, getLatestTagByMajor as getGitlabLatestTagByMajor, parseSeriesLabel as parseGitlabSeriesLabel, pickLatestForSeries as pickGitlabLatestForSeries } from "../ingest/gitlab/versioning";
 import { cmdEmbed } from "./embed";
 import { printError } from "./help";
 
@@ -98,6 +101,56 @@ export async function cmdIngest(store: Store, args: string[]): Promise<void> {
           updateSourceSync(store.db, source.id, {
             lastSyncAt: new Date().toISOString(),
             lastCommit,
+            lastEtag,
+            lastError,
+          });
+        } finally {
+          libraryStore.close();
+        }
+      } else if (source.kind === "gitlab") {
+        const libraryPath = ensureLibraryDbPath(store.db, source);
+        const libraryStore = await createLibraryStore(libraryPath);
+        const versionPlan = await buildGitlabVersionPlan(store.db, source, config);
+        let lastEtag: string | null = null;
+        let lastError: string | null = null;
+        try {
+          for (const plan of versionPlan) {
+            try {
+              console.log(`Ingesting ${source.name} @${plan.versionLabel}...`);
+              let showedProgress = false;
+              const result = await ingestGitlabSource(libraryStore.db, source, {
+                force,
+                concurrency,
+                refOverride: plan.ref,
+                versionLabelOverride: plan.versionLabel,
+                previousEtag: plan.previousEtag,
+                onProgress: (progress) => {
+                  showedProgress = true;
+                  writeProgress(`  Files: ${progress.current}/${progress.total}`);
+                },
+              });
+              if (showedProgress && process.stdout.isTTY) {
+                process.stdout.write("\n");
+              }
+              addSourceVersion(store.db, {
+                sourceId: source.id,
+                versionLabel: result.versionLabel,
+                ref: result.ref,
+                treeHash: result.treeHash,
+                etag: result.etag,
+              });
+              lastEtag = result.etag ?? lastEtag;
+              console.log(
+                `Done. files=${result.processed} updated=${result.updated} unchanged=${result.unchanged} skipped=${result.skipped}`,
+              );
+            } catch (err) {
+              const message = String((err as Error)?.message ?? err);
+              lastError = message;
+              console.log(`Error: ${message}`);
+            }
+          }
+          updateSourceSync(store.db, source.id, {
+            lastSyncAt: new Date().toISOString(),
             lastEtag,
             lastError,
           });
@@ -228,6 +281,73 @@ async function buildGithubVersionPlan(
       versionLabel: label,
       ref,
       previousSha: meta?.commit_sha ?? null,
+      previousEtag: meta?.etag ?? null,
+    });
+  }
+
+  return plan;
+}
+
+async function buildGitlabVersionPlan(
+  db: Store["db"],
+  source: { id: number; owner: string | null; repo: string | null; ref: string | null; version_label: string | null },
+  config: ReturnType<typeof loadConfig>,
+): Promise<Array<{ versionLabel: string; ref: string; previousEtag: string | null }>> {
+  if (!source.owner || !source.repo) return [];
+
+  const versionRows = listSourceVersions(db, source.id);
+  const versionMeta = new Map<string, { ref: string | null; etag: string | null }>();
+  for (const row of versionRows) {
+    if (!versionMeta.has(row.version_label)) {
+      versionMeta.set(row.version_label, { ref: row.ref, etag: row.etag });
+    }
+  }
+
+  const labels = new Set<string>();
+  for (const key of versionMeta.keys()) labels.add(key);
+  if (source.version_label) labels.add(source.version_label);
+  if (labels.size === 0) {
+    if (source.ref) labels.add(extractGitlabMajorVersion(source.ref) || source.ref);
+    else labels.add("HEAD");
+  }
+
+  const tags = await fetchGitlabTags(source.owner, source.repo, config.gitlab?.token);
+  const tagNames = tags.map((t) => t.name);
+  const majorMap = getGitlabLatestTagByMajor(tagNames);
+  const maxMajors = config.ingest?.maxMajorVersions ?? 3;
+  const majorLabels = Array.from(majorMap.keys())
+    .sort((a, b) => b - a)
+    .slice(0, Math.max(0, maxMajors))
+    .map((major) => `${major}.x`);
+  for (const label of majorLabels) {
+    labels.add(label);
+  }
+
+  let defaultBranch: string | null = null;
+  const sortedLabels = sortVersionLabels(Array.from(labels));
+  const plan: Array<{ versionLabel: string; ref: string; previousEtag: string | null }> = [];
+
+  for (const label of sortedLabels) {
+    const meta = versionMeta.get(label);
+    let ref: string | null = null;
+
+    if (parseGitlabSeriesLabel(label) !== null && tagNames.length > 0) {
+      ref = pickGitlabLatestForSeries({ tags: tagNames, seriesLabel: label });
+    }
+    if (!ref) ref = meta?.ref ?? null;
+    if (!ref && source.version_label === label && source.ref) ref = source.ref;
+    if (!ref && source.ref) ref = source.ref;
+    if (!ref) {
+      if (!defaultBranch) {
+        const info = await fetchProjectInfo(source.owner, source.repo, config.gitlab?.token);
+        defaultBranch = info?.defaultBranch ?? "main";
+      }
+      ref = defaultBranch ?? "main";
+    }
+
+    plan.push({
+      versionLabel: label,
+      ref,
       previousEtag: meta?.etag ?? null,
     });
   }

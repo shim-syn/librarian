@@ -33,6 +33,38 @@ export function addGithubSource(db: Database, input: {
   return Number(result.lastInsertRowid);
 }
 
+export function addGitlabSource(db: Database, input: {
+  name: string;
+  owner: string;
+  repo: string;
+  ref?: string | null;
+  docsPath?: string | null;
+  ingestMode?: string | null;
+  versionLabel?: string | null;
+  dbPath?: string | null;
+}): number {
+  const now = new Date().toISOString();
+  const result = db
+    .prepare([
+      "INSERT INTO sources (kind, name, owner, repo, ref, docs_path, ingest_mode, version_label, db_path, created_at, updated_at)",
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ].join(" "))
+    .run(
+      "gitlab",
+      input.name,
+      input.owner,
+      input.repo,
+      input.ref ?? null,
+      input.docsPath ?? null,
+      input.ingestMode ?? null,
+      input.versionLabel ?? null,
+      input.dbPath ?? null,
+      now,
+      now,
+    );
+  return Number(result.lastInsertRowid);
+}
+
 export function addWebSource(db: Database, input: {
   name: string;
   rootUrl: string;
