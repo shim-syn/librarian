@@ -8,6 +8,9 @@ export type LibrarianConfig = {
   github?: {
     token?: string;
   };
+  gitlab?: {
+    token?: string;
+  };
   hf?: {
     token?: string;
   };

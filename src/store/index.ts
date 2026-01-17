@@ -1,6 +1,7 @@
 export type { SourceRow, CrawlPageRow } from "./types";
 export {
   addGithubSource,
+  addGitlabSource,
   addWebSource,
   listSources,
   getSourceById,

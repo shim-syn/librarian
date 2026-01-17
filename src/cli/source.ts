@@ -1,9 +1,11 @@
 import type { Store } from "../store/db";
 import { listSources, removeSource } from "../store";
 import { parseGithubUrl } from "../ingest/github/parse";
+import { parseGitlabUrl } from "../ingest/gitlab/parse";
 import { cmdIngest } from "./ingest";
 import { printAddHelp, printError, printSourceHelp } from "./help";
 import { cmdSourceAddGithub } from "./source/github";
+import { cmdSourceAddGitlab } from "./source/gitlab";
 import { cmdSourceAddWeb } from "./source/web";
 import { parseFlags } from "./flags";
 
@@ -64,6 +66,13 @@ export async function cmdSource(store: Store, args: string[]): Promise<void> {
     return;
   }
 
+  if (sub === "add" && args[1] === "gitlab") {
+    const addArgs = args.slice(2);
+    const id = await cmdSourceAddGitlab(store, addArgs);
+    await maybeAutoIngest(store, id, addArgs);
+    return;
+  }
+
   if (sub === "add" && args[1] === "web") {
     const url = args[2];
     if (!url || url.startsWith("-")) {
@@ -106,6 +115,19 @@ export async function cmdAdd(store: Store, args: string[]): Promise<void> {
     await maybeAutoIngest(store, id, rest);
     return;
   }
+  if (url === "gitlab") {
+    url = args[1];
+    rest = args.slice(2);
+    if (!url) {
+      printError("you need a GitLab URL");
+      printAddHelp();
+      process.exitCode = 1;
+      return;
+    }
+    const id = await cmdSourceAddGitlab(store, [url, ...rest]);
+    await maybeAutoIngest(store, id, rest);
+    return;
+  }
   if (url === "web") {
     url = args[1];
     rest = args.slice(2);
@@ -132,14 +154,18 @@ export async function cmdAdd(store: Store, args: string[]): Promise<void> {
   }
 
   const parsed = parseGithubUrl(url);
+  const parsedGitlab = parseGitlabUrl(url);
   if (parsed) {
     const id = await cmdSourceAddGithub(store, [url, ...rest]);
+    await maybeAutoIngest(store, id, rest);
+  } else if (parsedGitlab) {
+    const id = await cmdSourceAddGitlab(store, [url, ...rest]);
     await maybeAutoIngest(store, id, rest);
   } else if (url.startsWith("http://") || url.startsWith("https://")) {
     const id = await cmdSourceAddWeb(store, url, rest);
     await maybeAutoIngest(store, id, rest);
   } else {
-    printError("that does not look like a GitHub or web URL");
+    printError("that does not look like a GitHub, GitLab or web URL");
     printAddHelp();
     process.exitCode = 1;
   }
